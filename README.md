@@ -8,7 +8,7 @@ Once you buy everything, something special is unlocked which I am sure 5-star lo
 
 Task for the GitHub Community SRM Recruitment.
 
-Try it here: https://feline-feeder.vercel.app/
+Try it here: https://feline-feeder.vercel.app/ (for the recruiter(s) reading this yes the CodePen deployment is incomplete they need me to pay to upload more than 3 files which I realised a little too late and sure as hell not doing)
 
 Asset links:
 https://toffeecraft.itch.io/cat-pack
