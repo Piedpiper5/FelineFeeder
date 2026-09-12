@@ -1,0 +1,784 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Feline Feeder</title>
+
+<style>
+  /* Basic page styling */
+  * { box-sizing: border-box; }
+
+  body {
+    font-family: "Segoe UI", Arial, sans-serif;
+    background: linear-gradient(180deg, #ffe9d6, #ffd3c2);
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+    min-height: 100vh;
+    margin: 0;
+    padding: 24px 12px;
+  }
+
+  #game {
+    background: #fffaf3;
+    border-radius: 20px;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.15);
+    padding: 22px 26px 22px;
+    width: 440px;
+    max-width: 100%;
+    text-align: center;
+  }
+
+  h1 { margin: 0 0 14px; color: #5a3921; font-size: 26px; }
+  h2 { color: #5a3921; margin: 18px 0 10px; font-size: 18px; }
+
+  /* Stats row */
+  #stats {
+    display: flex;
+    justify-content: space-around;
+    background: #ffe3c9;
+    border-radius: 12px;
+    padding: 10px 6px;
+    margin-bottom: 14px;
+    font-weight: bold;
+    color: #7a4a20;
+    font-size: 13px;
+  }
+  #stats span { color: #c2410c; }
+
+  /* Room container */
+  #cat-scene {
+    position: relative;
+    width: 360px;
+    max-width: 100%;
+    aspect-ratio: 1 / 1;
+    margin: 0 auto 12px;
+    background-image: url('assets/room-bg.png');
+    background-size: contain;
+    background-position: center;
+    background-repeat: no-repeat;
+    user-select: none;
+  }
+
+  /* Furniture items */
+  .furniture-slot {
+    position: absolute;
+    transform: translateX(-50%);
+    image-rendering: pixelated;
+  }
+  .furniture-slot img {
+    display: block;
+    width: 100%;
+    height: auto;
+    image-rendering: pixelated;
+  }
+
+  /* Cat position */
+  .cat-spot {
+    position: absolute;
+    left: 50%;
+    bottom: 22%;
+    transform: translateX(-50%);
+    z-index: 900;
+  }
+
+  /* Cat sprite.
+     Two states: idle (awake) and sleeping.
+     We use cat-feed.png for the awake look because cat-idle.png
+     had a crying-looking pose. cat-feed.png is a 2-frame sheet. */
+  .cat {
+    width: 64px;
+    height: 64px;
+    transform: scale(1.6);
+    transform-origin: bottom center;
+    background-repeat: no-repeat;
+    image-rendering: pixelated;
+    cursor: pointer;
+  }
+
+  .cat.idle {
+    background-image: url('assets/cat-feed.png');
+    animation: idle-anim 1s steps(2) infinite;
+  }
+  @keyframes idle-anim {
+    from { background-position: 0 0; }
+    to   { background-position: -128px 0; }
+  }
+
+  .cat.sleeping {
+    background-image: url('assets/cat-sleep.png');
+    animation: sleep-anim 1.8s steps(4) infinite;
+  }
+  @keyframes sleep-anim {
+    from { background-position: 0 0; }
+    to   { background-position: -256px 0; }
+  }
+
+  /* Food pouch (drawn with CSS) */
+  .pouch {
+    position: relative;
+    width: 30px;
+    height: 36px;
+    border-radius: 5px 5px 8px 8px;
+    background: var(--pouch-color, #d8a24a);
+    box-shadow:
+      inset -5px -5px 0 rgba(0,0,0,0.15),
+      inset  3px  3px 0 rgba(255,255,255,0.35);
+  }
+  .pouch::before {
+    content: '';
+    position: absolute;
+    left: -3px; right: -3px; top: -4px;
+    height: 8px;
+    background: rgba(255,255,255,0.75);
+    border-radius: 3px;
+    border-bottom: 2px solid rgba(0,0,0,0.12);
+  }
+  .pouch::after {
+    content: attr(data-label);
+    position: absolute;
+    left: 0; right: 0; top: 50%;
+    transform: translateY(-50%);
+    text-align: center;
+    font-size: 10px;
+    font-weight: bold;
+    color: rgba(0,0,0,0.55);
+  }
+
+  /* Packet dropping onto the cat */
+  .flying-food {
+    position: absolute;
+    left: 50%;
+    bottom: 34%;
+    z-index: 950;
+    pointer-events: none;
+    animation: food-drop 0.6s ease-in forwards;
+  }
+  @keyframes food-drop {
+    0%   { transform: translate(-50%, -170px) scale(1.1); opacity: 0; }
+    20%  { transform: translate(-50%, -160px) scale(1.1); opacity: 1; }
+    75%  { transform: translate(-50%, 0)      scale(1);   opacity: 1; }
+    100% { transform: translate(-50%, 5px)    scale(0.4); opacity: 0; }
+  }
+
+  /* Floating points text */
+  .float-points {
+    position: absolute;
+    left: 50%;
+    bottom: 45%;
+    color: #d97706;
+    font-weight: bold;
+    font-size: 20px;
+    pointer-events: none;
+    animation: float-up 0.8s ease-out forwards;
+  }
+  @keyframes float-up {
+    from { opacity: 1; transform: translate(-50%, 0); }
+    to   { opacity: 0; transform: translate(-50%, -55px); }
+  }
+
+  /* Food selection row */
+  #food-row {
+    display: flex;
+    justify-content: center;
+    gap: 10px;
+    margin-bottom: 8px;
+  }
+
+  .food-choice {
+    background: #fff2e2;
+    border: 2px solid #e8cfae;
+    border-radius: 12px;
+    padding: 10px 6px 8px;
+    cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 5px;
+    width: 86px;
+    font-size: 10px;
+    color: #7a4a20;
+    user-select: none;
+    transition: transform .1s, border-color .1s;
+  }
+  .food-choice:hover { transform: translateY(-3px); }
+  .food-choice.selected {
+    border-color: #ff9d5c;
+    background: #ffe6d0;
+  }
+  .food-choice.locked { opacity: .6; }
+  .food-choice.locked.affordable { opacity: 1; border-color: #7bc47f; }
+  .food-choice .price { font-weight: bold; color: #a15c2f; }
+
+  /* Feed button */
+  #feed-btn {
+    background: #ff9d5c;
+    border: none;
+    color: white;
+    font-size: 18px;
+    font-weight: bold;
+    padding: 12px 24px;
+    border-radius: 12px;
+    cursor: pointer;
+    width: 100%;
+    margin-bottom: 4px;
+  }
+  #feed-btn:hover:not(:disabled)  { background: #ff8a3d; }
+  #feed-btn:active:not(:disabled) { transform: scale(0.98); }
+  #feed-btn:disabled {
+    background: #ccb8a9;
+    cursor: not-allowed;
+  }
+
+  /* Auto feeder banner */
+  #auto-banner {
+    background: #dff5e0;
+    border: 2px solid #7bc47f;
+    color: #2f6b34;
+    border-radius: 12px;
+    padding: 10px;
+    font-size: 13px;
+    margin-top: 10px;
+  }
+  .hidden { display: none; }
+
+  /* Shop list */
+  #shop-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .shop-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: #fff2e2;
+    border: 2px solid #f0dcc4;
+    border-radius: 12px;
+    padding: 8px 10px;
+    text-align: left;
+  }
+  .shop-item.owned {
+    opacity: .55;
+    background: #f4ece2;
+  }
+
+  .shop-icon {
+    width: 44px;
+    height: 44px;
+    object-fit: contain;
+    flex: 0 0 auto;
+    image-rendering: pixelated;
+  }
+
+  .shop-info { flex: 1; }
+  .shop-name { font-weight: bold; color: #5a3921; font-size: 14px; }
+  .shop-desc { font-size: 11px; color: #a15c2f; }
+
+  .buy-btn {
+    background: #7bc47f;
+    border: none;
+    color: white;
+    padding: 8px 14px;
+    border-radius: 10px;
+    cursor: pointer;
+    font-weight: bold;
+    font-size: 13px;
+    white-space: nowrap;
+  }
+  .buy-btn:hover:not(:disabled) { background: #63b268; }
+  .buy-btn:disabled {
+    background: #c9d4c9;
+    cursor: not-allowed;
+  }
+
+  #shop-message {
+    font-size: 13px;
+    color: #a15c2f;
+    min-height: 18px;
+    margin-top: 8px;
+  }
+
+  #reset-btn {
+    background: none;
+    border: none;
+    color: #b08a6a;
+    font-size: 12px;
+    text-decoration: underline;
+    cursor: pointer;
+    margin-top: 12px;
+  }
+</style>
+</head>
+<body>
+
+<div id="game">
+  <h1>Feline Feeder</h1>
+
+  <div id="stats">
+    <div>Meow Points: <span id="points">0</span></div>
+    <div>Mana: <span id="mana">0</span></div>
+    <div>Per Feed: <span id="per-feed">1</span></div>
+  </div>
+
+  <div id="cat-scene">
+    <div class="cat-spot">
+      <div id="cat" class="cat idle"></div>
+    </div>
+  </div>
+
+  <div id="food-row"></div>
+
+  <button id="feed-btn">Feed the Cat</button>
+
+  <div id="auto-banner" class="hidden">
+    <strong>Auto-Feeder unlocked!</strong> The cat feeds itself now.
+  </div>
+
+  <h2>Shop</h2>
+  <div id="shop-list"></div>
+  <div id="shop-message"></div>
+
+  <button id="reset-btn">Reset game</button>
+</div>
+
+<audio id="meow-sound" src="assets/cat.mp3" preload="auto"></audio>
+
+<script>
+// Get all the elements we need
+const pointsEl = document.getElementById('points');
+const manaEl = document.getElementById('mana');
+const perFeedEl = document.getElementById('per-feed');
+const catEl = document.getElementById('cat');
+const sceneEl = document.getElementById('cat-scene');
+const feedBtn = document.getElementById('feed-btn');
+const foodRowEl = document.getElementById('food-row');
+const shopListEl = document.getElementById('shop-list');
+const shopMsgEl = document.getElementById('shop-message');
+const autoBanner = document.getElementById('auto-banner');
+const meowSound = document.getElementById('meow-sound');
+const resetBtn = document.getElementById('reset-btn');
+
+// Game state
+let points = 0;
+let mana = 0;
+let selectedFoodId = 'kibble';
+let isAsleep = false;
+
+// Foods
+const foods = [
+  { id: 'kibble', name: 'Kibble', value: 1, price: 0, color: '#d8a24a', unlocked: true },
+  { id: 'chicken', name: 'Chicken Pouch', value: 4, price: 25, color: '#e8956b', unlocked: false },
+  { id: 'salmon', name: 'Salmon Pouch', value: 12, price: 150, color: '#f08a95', unlocked: false },
+  { id: 'gourmet', name: 'Gourmet Feast', value: 30, price: 600, color: '#9b86e8', unlocked: false }
+];
+
+// Shop items.
+// sleepCut    = seconds taken off the cat's nap
+// awakeBonus  = seconds added to how long the cat stays awake
+const shopItems = [
+  { id: 'cushion', name: 'Round Cushion', icon: 'assets/furniture-cushion.png', cost: 15, mana: 1, sleepCut: 0, awakeBonus: 0, size: 15, owned: false },
+  { id: 'bowl', name: 'Food Bowl', icon: 'assets/furniture-bowl.png', cost: 60, mana: 2, sleepCut: 0, awakeBonus: 0, size: 15, owned: false },
+  { id: 'plant', name: 'Potted Plant', icon: 'assets/furniture-plant.png', cost: 200, mana: 3, sleepCut: 0, awakeBonus: 0, size: 16, owned: false },
+  { id: 'bed', name: 'Cozy Cat Bed', icon: 'assets/furniture-bed.png', cost: 400, mana: 5, sleepCut: 2, awakeBonus: 3, size: 21, owned: false },
+  { id: 'tree', name: 'Scratching Tree', icon: 'assets/furniture-tree.png', cost: 800, mana: 8, sleepCut: 0, awakeBonus: 5, size: 16, owned: false },
+  { id: 'shelf', name: 'Bookshelf', icon: 'assets/furniture-shelf.png', cost: 1500, mana: 12, sleepCut: 2, awakeBonus: 5, size: 19, owned: false }
+];
+
+// Fixed floor positions for each furniture item (percent of the room)
+const furniturePositions = [
+  { left: 55, top: 55 },  // cushion
+  { left: 25, top: 60 },  // bowl
+  { left: 75, top: 50 },  // plant
+  { left: 40, top: 65 },  // bed
+  { left: 85, top: 60 },  // tree
+  { left: 15, top: 45 }   // shelf
+];
+
+// Nap timing.
+// Base: stays awake 25 to 40 seconds, naps 8 to 14 seconds.
+let sleepMin = 8;
+let sleepMax = 14;
+let awakeMin = 25;
+let awakeMax = 40;
+
+// Timers
+let napTimer = null;
+let autoFeedTimer = null;
+
+// Random whole number between min and max
+function randomInt(min, max) {
+  return Math.floor(Math.random() * (max - min + 1)) + min;
+}
+
+// Points gained from one feed
+function pointsPerFeed() {
+  let food = foods.find(function(f) { return f.id === selectedFoodId; });
+  if (!food) food = foods[0];
+  return food.value + mana;
+}
+
+// Update the top stats row
+function updateStats() {
+  pointsEl.textContent = points;
+  manaEl.textContent = mana;
+  perFeedEl.textContent = pointsPerFeed();
+}
+
+// Draw the food choices
+function renderFoods() {
+  foodRowEl.innerHTML = '';
+  foods.forEach(function(food) {
+    const card = document.createElement('div');
+    card.className = 'food-choice';
+    if (food.id === selectedFoodId) card.classList.add('selected');
+    if (!food.unlocked) card.classList.add('locked');
+    if (!food.unlocked && points >= food.price) card.classList.add('affordable');
+
+    const pouch = document.createElement('div');
+    pouch.className = 'pouch';
+    pouch.style.setProperty('--pouch-color', food.color);
+    pouch.setAttribute('data-label', '+' + food.value);
+    card.appendChild(pouch);
+
+    const name = document.createElement('div');
+    name.textContent = food.name;
+    card.appendChild(name);
+
+    const price = document.createElement('div');
+    price.className = 'price';
+    if (food.unlocked) {
+      price.textContent = '+' + (food.value + mana) + '/feed';
+    } else {
+      price.textContent = food.price + ' pts';
+    }
+    card.appendChild(price);
+
+    card.addEventListener('click', function() {
+      chooseFood(food);
+    });
+
+    food.cardEl = card;
+    foodRowEl.appendChild(card);
+  });
+}
+
+// Draw the shop list
+function renderShop() {
+  shopListEl.innerHTML = '';
+  shopItems.forEach(function(item) {
+    const row = document.createElement('div');
+    row.className = 'shop-item';
+    if (item.owned) row.classList.add('owned');
+
+    const img = document.createElement('img');
+    img.className = 'shop-icon';
+    img.src = item.icon;
+    img.alt = item.name;
+    row.appendChild(img);
+
+    const info = document.createElement('div');
+    info.className = 'shop-info';
+
+    const nameEl = document.createElement('div');
+    nameEl.className = 'shop-name';
+    nameEl.textContent = item.name;
+
+    const descEl = document.createElement('div');
+    descEl.className = 'shop-desc';
+    let desc = [];
+    if (item.mana) desc.push('+' + item.mana + ' Mana');
+    if (item.sleepCut) desc.push('-' + item.sleepCut + 's nap');
+    if (item.awakeBonus) desc.push('+' + item.awakeBonus + 's awake');
+    descEl.textContent = desc.join(' / ');
+
+    info.appendChild(nameEl);
+    info.appendChild(descEl);
+    row.appendChild(info);
+
+    const btn = document.createElement('button');
+    btn.className = 'buy-btn';
+    btn.textContent = item.owned ? 'Owned' : item.cost + ' pts';
+    btn.disabled = item.owned || points < item.cost;
+    btn.addEventListener('click', function() {
+      buyItem(item);
+    });
+    row.appendChild(btn);
+
+    item.buttonEl = btn;
+    shopListEl.appendChild(row);
+  });
+}
+
+// Turn buy buttons on or off
+function updateShopButtons() {
+  shopItems.forEach(function(item) {
+    if (!item.buttonEl) return;
+    item.buttonEl.disabled = item.owned || points < item.cost;
+  });
+}
+
+// Mark locked foods that are now affordable
+function updateFoodAffordability() {
+  foods.forEach(function(food) {
+    if (!food.cardEl) return;
+    if (food.unlocked) return;
+    if (points >= food.price) {
+      food.cardEl.classList.add('affordable');
+    } else {
+      food.cardEl.classList.remove('affordable');
+    }
+  });
+}
+
+// Place a piece of furniture in its fixed spot
+function placeFurniture(item, index) {
+  const pos = furniturePositions[index];
+  const wrapper = document.createElement('div');
+  wrapper.className = 'furniture-slot';
+  wrapper.style.left = pos.left + '%';
+  wrapper.style.top = pos.top + '%';
+  wrapper.style.width = item.size + '%';
+  wrapper.style.zIndex = Math.round(pos.top);
+
+  const img = document.createElement('img');
+  img.src = item.icon;
+  img.alt = item.name;
+  wrapper.appendChild(img);
+
+  sceneEl.appendChild(wrapper);
+}
+
+// Feed the cat.
+// The cat stays on its idle sprite while being fed - only the
+// packet animation and the floating number appear.
+function feedCat(playSound) {
+  if (isAsleep) return;
+  if (playSound === undefined) playSound = true;
+
+  const gain = pointsPerFeed();
+  points += gain;
+
+  updateStats();
+  updateShopButtons();
+  updateFoodAffordability();
+
+  // Drop the food packet
+  const food = foods.find(function(f) { return f.id === selectedFoodId; }) || foods[0];
+  const packet = document.createElement('div');
+  packet.className = 'pouch flying-food';
+  packet.style.setProperty('--pouch-color', food.color);
+  packet.setAttribute('data-label', '+' + food.value);
+  sceneEl.appendChild(packet);
+  setTimeout(function() { packet.remove(); }, 620);
+
+  // Floating +N
+  setTimeout(function() {
+    const float = document.createElement('div');
+    float.className = 'float-points';
+    float.textContent = '+' + gain;
+    sceneEl.appendChild(float);
+    setTimeout(function() { float.remove(); }, 820);
+  }, 380);
+
+  if (playSound) {
+    meowSound.currentTime = 0;
+    meowSound.play().catch(function() {});
+  }
+
+  saveGame();
+}
+
+// Pick a food, or buy the unlock if it's still locked
+function chooseFood(food) {
+  if (food.unlocked) {
+    selectedFoodId = food.id;
+    renderFoods();
+    updateStats();
+    saveGame();
+    return;
+  }
+
+  if (points < food.price) {
+    shopMsgEl.textContent = 'You need ' + food.price + ' Meow Points to unlock ' + food.name + '.';
+    return;
+  }
+
+  points -= food.price;
+  food.unlocked = true;
+  selectedFoodId = food.id;
+
+  shopMsgEl.textContent = food.name + ' unlocked! It gives +' + food.value + ' per feed.';
+
+  updateStats();
+  renderFoods();
+  updateShopButtons();
+  saveGame();
+}
+
+// Buy a piece of furniture
+function buyItem(item) {
+  if (item.owned || points < item.cost) return;
+
+  points -= item.cost;
+  item.owned = true;
+  mana += item.mana;
+
+  recalcTiming();
+
+  const index = shopItems.indexOf(item);
+  placeFurniture(item, index);
+
+  shopMsgEl.textContent = item.name + ' bought! Mana is now ' + mana + '.';
+
+  updateStats();
+  updateShopButtons();
+  renderFoods();
+  checkAutoFeeder();
+  saveGame();
+}
+
+// Work out current nap timing from owned furniture
+function recalcTiming() {
+  let sleepCut = 0;
+  let awakeBonus = 0;
+
+  shopItems.forEach(function(item) {
+    if (item.owned) {
+      sleepCut += item.sleepCut;
+      awakeBonus += item.awakeBonus;
+    }
+  });
+
+  sleepMin = Math.max(4, 8 - sleepCut);
+  sleepMax = Math.max(6, 14 - sleepCut);
+  awakeMin = 25 + awakeBonus;
+  awakeMax = 40 + awakeBonus;
+}
+
+// Stay awake for a random while, then fall asleep
+function startAwakeTimer() {
+  clearTimeout(napTimer);
+  const seconds = randomInt(awakeMin, awakeMax);
+  napTimer = setTimeout(fallAsleep, seconds * 1000);
+}
+
+function fallAsleep() {
+  isAsleep = true;
+  catEl.classList.remove('idle');
+  catEl.classList.add('sleeping');
+  updateFeedButton();
+
+  const seconds = randomInt(sleepMin, sleepMax);
+  napTimer = setTimeout(wakeUp, seconds * 1000);
+}
+
+function wakeUp() {
+  isAsleep = false;
+  catEl.classList.remove('sleeping');
+  catEl.classList.add('idle');
+  updateFeedButton();
+  startAwakeTimer();
+}
+
+// Feed button text and enabled state
+function updateFeedButton() {
+  feedBtn.disabled = isAsleep;
+  if (isAsleep) {
+    feedBtn.textContent = 'Zzz... the cat is napping';
+  } else {
+    feedBtn.textContent = 'Feed the Cat';
+  }
+}
+
+// Auto feeder, unlocked once everything in the shop is owned
+function startAutoFeeder() {
+  if (autoFeedTimer) return;
+  autoBanner.classList.remove('hidden');
+  autoFeedTimer = setInterval(function() {
+    if (!isAsleep) feedCat(false);
+  }, 1100);
+}
+
+function checkAutoFeeder() {
+  let allOwned = true;
+  shopItems.forEach(function(item) {
+    if (!item.owned) allOwned = false;
+  });
+  if (allOwned) startAutoFeeder();
+}
+
+// Save / load / reset
+function saveGame() {
+  const data = {
+    points: points,
+    mana: mana,
+    selectedFoodId: selectedFoodId,
+    foods: foods.map(function(f) { return { id: f.id, unlocked: f.unlocked }; }),
+    items: shopItems.map(function(i) { return { id: i.id, owned: i.owned }; })
+  };
+  localStorage.setItem('felineFeederSave', JSON.stringify(data));
+}
+
+function loadGame() {
+  const raw = localStorage.getItem('felineFeederSave');
+  if (!raw) return;
+
+  let data;
+  try {
+    data = JSON.parse(raw);
+  } catch (e) {
+    return;
+  }
+
+  points = data.points || 0;
+  mana = data.mana || 0;
+  selectedFoodId = data.selectedFoodId || 'kibble';
+
+  if (data.foods) {
+    data.foods.forEach(function(saved) {
+      const match = foods.find(function(f) { return f.id === saved.id; });
+      if (match) match.unlocked = saved.unlocked;
+    });
+  }
+
+  if (data.items) {
+    data.items.forEach(function(saved) {
+      const match = shopItems.find(function(i) { return i.id === saved.id; });
+      if (match) match.owned = saved.owned;
+    });
+  }
+
+  foods[0].unlocked = true;
+}
+
+function resetGame() {
+  localStorage.removeItem('felineFeederSave');
+  location.reload();
+}
+
+// Wire up buttons
+feedBtn.addEventListener('click', function() { feedCat(); });
+catEl.addEventListener('click', function() { feedCat(); });
+resetBtn.addEventListener('click', resetGame);
+
+// Start the game
+loadGame();
+recalcTiming();
+updateStats();
+renderFoods();
+renderShop();
+
+shopItems.forEach(function(item, index) {
+  if (item.owned) placeFurniture(item, index);
+});
+
+checkAutoFeeder();
+updateFeedButton();
+catEl.classList.add('idle');
+startAwakeTimer();
+</script>
+
+</body>
+</html>
