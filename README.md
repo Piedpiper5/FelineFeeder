@@ -11,11 +11,15 @@ Task for the GitHub Community SRM Recruitment.
 Try it here: https://feline-feeder.vercel.app/ (for the recruiter(s) reading this yes the CodePen deployment is incomplete they need me to pay to upload more than 3 files which I realised a little too late and sure as hell not doing)
 
 Asset links:
+<br>
 https://toffeecraft.itch.io/cat-pack
+<br>
 https://toffeecraft.itch.io/cat-mega-bundle
+<br>
 https://toffeecraft.itch.io/cat-room
-
+<br>
+<br>
 https://pixabay.com/sound-effects/film-special-effects-cat-cute-meow-517355/
-
-
+<br>
+<br>
 Note: Just being honest and disclosing that the entire project's code was written by Claude in collaboration with DeepSeek (I hit my Claude limit).
